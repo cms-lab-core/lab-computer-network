@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+tool_bin_dir="$repo_root/.cache/cms-labs/bin"
+mkdir -p "$tool_bin_dir"
+export PATH="$tool_bin_dir:$PATH"
+cluster_name=${CMS_LABS_CLUSTER_NAME:-cms-labs-demo}
+context="kind-${cluster_name}"
+namespace=cms-labs-system
+attempt_id=00000000-0000-0000-0000-000000000000
+frontend_port=${CMS_LABS_FRONTEND_PORT:-18080}
+kind_version=v0.33.0
+kubectl_version=v1.33.12
+helm_version=v3.19.0
+clabernetes_version=0.9.0
+# Track the newest stable 1.x chart while preventing an automatic major upgrade.
+# Set CMS_LABS_API_CHART_VERSION to an exact version when reproducibility matters.
+cms_api_chart_version=${CMS_LABS_API_CHART_VERSION:-^1.0.0}
+terminal_chart_version=${CMS_LABS_TERMINAL_CHART_VERSION:-^2.0.0}
+capture_chart_version=${CMS_LABS_CAPTURE_CHART_VERSION:-^0.1.0}
+use_local_charts=${CMS_LABS_USE_LOCAL_CHARTS:-false}
+
+install_binary() {
+  local name=$1 url=$2 destination="$tool_bin_dir/$1"
+  if command -v "$name" >/dev/null 2>&1; then return; fi
+  printf 'Installing %s...\n' "$name"
+  curl --fail --silent --show-error --location "$url" --output "$destination"
+  chmod 0755 "$destination"
+}
+
+install_tools() {
+  local machine architecture system
+  machine=$(uname -m)
+  case "$machine" in
+    x86_64) architecture=amd64 ;;
+    aarch64|arm64) architecture=arm64 ;;
+    *) printf 'Unsupported architecture: %s\n' "$machine" >&2; exit 1 ;;
+  esac
+  case "$(uname -s)" in
+    Linux) system=linux ;;
+    Darwin) system=darwin ;;
+    *) printf 'Unsupported operating system: %s\n' "$(uname -s)" >&2; exit 1 ;;
+  esac
+  install_binary kind "https://kind.sigs.k8s.io/dl/${kind_version}/kind-${system}-${architecture}"
+  install_binary kubectl "https://dl.k8s.io/release/${kubectl_version}/bin/${system}/${architecture}/kubectl"
+  if ! command -v helm >/dev/null 2>&1; then
+    local tools_dir archive
+    tools_dir=$(mktemp -d)
+    archive="$tools_dir/helm.tar.gz"
+    curl --fail --silent --show-error --location \
+      "https://get.helm.sh/helm-${helm_version}-${system}-${architecture}.tar.gz" --output "$archive"
+    tar -xzf "$archive" -C "$tools_dir"
+    install -m 0755 "$tools_dir/${system}-${architecture}/helm" "$tool_bin_dir/helm"
+    rm -rf "$tools_dir"
+  fi
+}
+
+create_cluster() {
+  local clusters
+  clusters=$(kind get clusters 2>/dev/null || true)
+  if grep -Fxq "$cluster_name" <<<"$clusters"; then return; fi
+  if [[ ! "$frontend_port" =~ ^[0-9]+$ ]] || ((frontend_port < 1024 || frontend_port > 65535)); then
+    printf 'CMS_LABS_FRONTEND_PORT must be an integer between 1024 and 65535\n' >&2
+    exit 2
+  fi
+  local kind_config
+  kind_config=$(mktemp)
+  sed "s/hostPort: 18080/hostPort: ${frontend_port}/" "$repo_root/.cms-labs/kind.yaml" >"$kind_config"
+  # A loopback proxy copied into the kind node points at the node itself, not at the host.
+  if ! env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy \
+    kind create cluster --name "$cluster_name" --config "$kind_config" --image kindest/node:v1.33.12; then
+    rm -f "$kind_config"
+    return 1
+  fi
+  rm -f "$kind_config"
+}
+
+install_clabernetes() {
+  helm upgrade --install clabernetes oci://ghcr.io/clabernetes/clabernetes/clabernetes \
+    --version "$clabernetes_version" --namespace c9s --create-namespace --kube-context "$context" \
+    --set globalConfig.mergeMode=overwrite \
+    --set ui.enabled=false
+  kubectl --context "$context" wait --for=condition=Available deployment --all -n c9s --timeout=5m
+}
+
+install_lab_controllers() {
+  local terminal_chart capture_chart
+  terminal_chart=${CMS_LABS_TERMINAL_CHART:-oci://ghcr.io/cms-lab-core/charts/cms-labs-terminal}
+  capture_chart=${CMS_LABS_CAPTURE_CHART:-oci://ghcr.io/cms-lab-core/charts/cms-labs-capture}
+
+  # Published OCI charts are the default even when sibling source checkouts
+  # exist. Opt in explicitly when developing a controller chart locally.
+  if test "$use_local_charts" = true && test -z "${CMS_LABS_TERMINAL_CHART:-}"; then
+    test -d "$repo_root/../cms-labs-terminal/charts/cms-labs-terminal" || {
+      printf 'Local terminal chart was requested but the sibling repository is missing\n' >&2
+      exit 1
+    }
+    terminal_chart="$repo_root/../cms-labs-terminal/charts/cms-labs-terminal"
+  fi
+  if test "$use_local_charts" = true && test -z "${CMS_LABS_CAPTURE_CHART:-}"; then
+    test -d "$repo_root/../cms-labs-capture/charts/cms-labs-capture" || {
+      printf 'Local capture chart was requested but the sibling repository is missing\n' >&2
+      exit 1
+    }
+    capture_chart="$repo_root/../cms-labs-capture/charts/cms-labs-capture"
+  fi
+
+  local -a terminal_version_args=() capture_version_args=()
+  if [[ "$terminal_chart" = oci://* ]] && test -n "$terminal_chart_version"; then terminal_version_args=(--version "$terminal_chart_version"); fi
+  if [[ "$capture_chart" = oci://* ]] && test -n "$capture_chart_version"; then capture_version_args=(--version "$capture_chart_version"); fi
+
+  helm upgrade --install terminal "$terminal_chart" "${terminal_version_args[@]}" \
+    --namespace "$namespace" --create-namespace --kube-context "$context" \
+    --set controller.proxyNamespace="$namespace" \
+    --set image.tag=latest \
+    --set image.pullPolicy=Always \
+    --wait --timeout 5m
+  helm upgrade --install capture "$capture_chart" "${capture_version_args[@]}" \
+    --namespace "$namespace" --create-namespace --kube-context "$context" \
+    --set controller.proxyNamespace="$namespace" \
+    --set image.tag=latest \
+    --set image.pullPolicy=Always \
+    --wait --timeout 5m
+}
+
+install_cms_stack() {
+  local chart key_dir
+  local -a helm_command jwt_args
+  chart=${CMS_LABS_API_CHART:-oci://ghcr.io/cms-lab-core/cms-labs-api/charts/universal-chart}
+  helm_command=(helm upgrade --install cms-labs-dev "$chart")
+  if [[ "$chart" = oci://* ]]; then
+    helm_command+=(--version "$cms_api_chart_version")
+  fi
+
+  # universal-chart owns the Secret. Pass the existing pair back on upgrades so
+  # rotating a Helm release does not invalidate every issued JWT.
+  key_dir=$(mktemp -d)
+  if kubectl --context "$context" -n "$namespace" get secret cms-demo-jwt >/dev/null 2>&1; then
+    kubectl --context "$context" -n "$namespace" get secret cms-demo-jwt \
+      -o jsonpath='{.data.private\.pem}' | openssl base64 -d -A -out "$key_dir/private.pem"
+    kubectl --context "$context" -n "$namespace" get secret cms-demo-jwt \
+      -o jsonpath='{.data.public\.pem}' | openssl base64 -d -A -out "$key_dir/public.pem"
+  else
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key_dir/private.pem" >/dev/null 2>&1
+    openssl pkey -in "$key_dir/private.pem" -pubout -out "$key_dir/public.pem" >/dev/null 2>&1
+  fi
+  jwt_args=(
+    --set-file "secrets.cms-demo-jwt.data.private\\.pem=$key_dir/private.pem"
+    --set-file "secrets.cms-demo-jwt.data.public\\.pem=$key_dir/public.pem"
+  )
+
+  if ! "${helm_command[@]}" \
+    --namespace "$namespace" --create-namespace --kube-context "$context" \
+    --take-ownership \
+    --timeout 10m \
+    --values "$repo_root/.cms-labs/cms-labs-values.yaml" \
+    --set-file "configMaps.cms-demo-catalog.data.catalog\\.json=$repo_root/demo-labs.json" \
+    "${jwt_args[@]}"; then
+    kubectl --context "$context" -n "$namespace" logs \
+      -l app.kubernetes.io/component=demo-seed --all-containers --tail=200 >&2 || true
+    rm -rf "$key_dir"
+    return 1
+  fi
+
+  rm -rf "$key_dir"
+
+  local deployment
+  for deployment in mysql backend clabgate frontend; do
+    kubectl --context "$context" -n "$namespace" rollout status "deployment/$deployment" --timeout=10m
+  done
+}
+
+up() {
+  install_tools
+  create_cluster
+  install_clabernetes
+  install_lab_controllers
+  install_cms_stack
+  printf '\nCMS Labs demo is ready: http://127.0.0.1:%s/session/%s\n' "$frontend_port" "$attempt_id"
+  printf 'Login: admin@admin.com / admin\n'
+}
+
+status() {
+  kubectl --context "$context" get pods -A
+  kubectl --context "$context" get topology -A
+}
+
+ready() {
+  command -v kind >/dev/null 2>&1 || return 1
+  command -v kubectl >/dev/null 2>&1 || return 1
+  kind get clusters 2>/dev/null | grep -Fxq "$cluster_name" || return 1
+
+  local deployment available
+  for deployment in mysql backend clabgate frontend; do
+    available=$(kubectl --context "$context" -n "$namespace" get "deployment/$deployment" \
+      -o jsonpath='{.status.availableReplicas}' 2>/dev/null || true)
+    [[ "${available:-0}" =~ ^[1-9][0-9]*$ ]] || return 1
+  done
+}
+
+resume() {
+  install_tools
+  if ready; then
+    printf 'CMS Labs demo is already running: http://127.0.0.1:%s/session/%s\n' \
+      "$frontend_port" "$attempt_id"
+    return
+  fi
+  up
+}
+
+down() {
+  kind delete cluster --name "$cluster_name"
+}
+
+case "${1:-up}" in
+  up|ensure) up ;;
+  resume) resume ;;
+  status) status ;;
+  down) down ;;
+  open) printf 'http://127.0.0.1:%s/session/%s\n' "$frontend_port" "$attempt_id" ;;
+  *) printf 'Usage: %s {up|ensure|resume|status|open|down}\n' "$0" >&2; exit 2 ;;
+esac

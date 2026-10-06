@@ -1,0 +1,109 @@
+{
+  "labs": [
+    {
+      "id": 10000,
+      "name": "#00 Как работает наш сетевой notebook",
+      "description": "Знакомство с сетевой лабораторной средой: запуск ячеек, терминал, состояние стенда, CHECK, диагностика ошибок и восстановление окружения.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-000.git#main",
+      "test_path": "lab-computer-network-000"
+    },
+    {
+      "id": 10001,
+      "name": "#01 Один пакет — весь стек",
+      "description": "Разбор одного сетевого сообщения по уровням: Ethernet, IP, TCP/UDP и приложение. Инкапсуляция, заголовки, payload, raw bytes и hex.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-001.git#main",
+      "test_path": "lab-computer-network-001"
+    },
+    {
+      "id": 10002,
+      "name": "#02 Хост как сетевой узел",
+      "description": "Устройство сетевого хоста: интерфейсы, MAC- и IP-адреса, префиксы, MTU, маршруты, gateway и таблица соседей.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-002.git#main",
+      "test_path": "lab-computer-network-002"
+    },
+    {
+      "id": 10003,
+      "name": "#03 Ethernet: как выглядит кадр",
+      "description": "Исследование Ethernet II: MAC source и destination, EtherType, MTU, payload и соответствие полей кадра реальным байтам.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-003.git#main",
+      "test_path": "lab-computer-network-003"
+    },
+    {
+      "id": 10004,
+      "name": "#04 Коммутатор учится",
+      "description": "Работа Ethernet-коммутатора: обучение source MAC, CAM-таблица, unknown unicast flooding и переход к точной пересылке кадров.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-004.git#main",
+      "test_path": "lab-computer-network-004"
+    },
+    {
+      "id": 10005,
+      "name": "#05 ARP: как IP превращается в MAC",
+      "description": "Исследование ARP: broadcast request, unicast reply, neighbor cache и переход от разрешения адреса к передаче ICMP.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-005.git#main",
+      "test_path": "lab-computer-network-005"
+    },
+    {
+      "id": 10006,
+      "name": "#06 IPv4: адрес, сеть и префикс",
+      "description": "IPv4-адресация, префиксы и subnetting. Изменение маски сети, определение локальных соседей, подсети и основы VLSM.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-006.git#main",
+      "test_path": "lab-computer-network-006"
+    },
+    {
+      "id": 10007,
+      "name": "#07 Маршрутизация: куда пойдёт пакет",
+      "description": "Таблица маршрутизации, connected и static routes, default route, longest-prefix match и прохождение пакета через несколько маршрутизаторов.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-007.git#main",
+      "test_path": "lab-computer-network-007"
+    },
+    {
+      "id": 10008,
+      "name": "#08 ICMP и traceroute: сеть рассказывает о себе",
+      "description": "ICMP Echo, TTL и Time Exceeded. Исследование маршрута пакета и принципа работы traceroute на реальном сетевом стенде.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-008.git#main",
+      "test_path": "lab-computer-network-008"
+    },
+    {
+      "id": 10009,
+      "name": "#09 IPv6 и Neighbor Discovery",
+      "description": "IPv6-адресация, link-local и global addresses, префикс /64, multicast и обнаружение соседей через Neighbor Discovery.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-009.git#main",
+      "test_path": "lab-computer-network-009"
+    },
+    {
+      "id": 10010,
+      "name": "#10 Транспортный уровень и UDP",
+      "description": "UDP, порты и сокеты. Передача реальных дейтаграмм между узлами и исследование возможностей и ограничений UDP.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-010.git#main",
+      "test_path": "lab-computer-network-010"
+    },
+    {
+      "id": 10011,
+      "name": "#11 TCP как разговор двух автоматов",
+      "description": "TCP handshake, SYN, ACK, sequence numbers, payload, подтверждения, retransmission и состояние TCP-соединения.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-011.git#main",
+      "test_path": "lab-computer-network-011"
+    },
+    {
+      "id": 10012,
+      "name": "#12 DNS: имя становится адресом",
+      "description": "Работа DNS на локальном стенде: A, AAAA, CNAME и NS-записи, запросы и ответы, UDP/53 и использование TCP в DNS.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-012.git#main",
+      "test_path": "lab-computer-network-012"
+    },
+    {
+      "id": 10013,
+      "name": "#13 HTTP: приложение наконец говорит",
+      "description": "Исследование HTTP: запросы, headers, status codes и body. Наблюдение HTTP внутри TCP/IP/Ethernet и границы видимости при использовании TLS.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-013.git#main",
+      "test_path": "lab-computer-network-013"
+    },
+    {
+      "id": 10014,
+      "name": "#14 От URL до страницы — итоговая сеть",
+      "description": "Итоговая диагностика сломанного стенда: DNS, ARP/NDP, routing, ICMP, TCP и HTTP. Поиск и объяснение нескольких независимых неисправностей.",
+      "labs_path": "https://github.com/cms-lab-core/lab-computer-network-014.git#main",
+      "test_path": "lab-computer-network-014"
+    }
+  ]
+}

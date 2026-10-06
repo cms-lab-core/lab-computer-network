@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.base.schema.json",
+  "name": "CMS Labs Simple Task",
+  "image": "ghcr.io/srl-labs/containerlab/devcontainer-dind-slim:latest",
+  "runArgs": ["--privileged"],
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+  "forwardPorts": [18080],
+  "portsAttributes": {
+    "18080": {
+      "label": "CMS Labs full demo",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-toolsai.jupyter",
+        "srl-labs.vscode-containerlab"
+      ]
+    }
+  },
+  "waitFor": "postCreateCommand",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh"
+}
