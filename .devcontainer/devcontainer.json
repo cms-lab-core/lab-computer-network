@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.base.schema.json",
-  "name": "CMS Labs Simple Task",
+  "name": "CMS Labs Computer Networks",
   "image": "ghcr.io/srl-labs/containerlab/devcontainer-dind-slim:latest",
   "runArgs": ["--privileged"],
   "hostRequirements": {
